@@ -122,14 +122,25 @@ helm uninstall gatekeeper --namespace gatekeeper-system
 
 
 
-Alternative build
+## Alternative build
 
 ```bash
-
 # Point your shell to minikube's docker-daemon
 eval $(minikube docker-env)
 docker ps
 docker images
 
 # Build the image
-docker build -t openpolicyagent/gatekeeper-external-data-provider:latest .
+docker build -t openpolicyagent/gatekeeper-external-data-provider:dev .
+```
+
+# Uninstalling
+
+```bash
+kubectl delete assign.mutations.gatekeeper.sh assign-scheduling-region
+
+helm uninstall external-data-provider --namespace "${NAMESPACE:-gatekeeper-system}"
+
+docker rmi openpolicyagent/gatekeeper-external-data-provider:dev
+
+```
