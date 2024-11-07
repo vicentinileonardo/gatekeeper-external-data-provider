@@ -44,10 +44,10 @@ func Handler(w http.ResponseWriter, req *http.Request) {
 
 		// add checks to validate the key,
 		//key must be schedulingRegion
-		if key != "schedulingRegion" {
+		if key != "not_scheduled" {
 			utils.SendResponse(nil, fmt.Sprintf("invalid key: %s", key), w)
 			return
-		} else if key == "schedulingRegion" {
+		} else if key == "not_scheduled" {
 			results = append(results, externaldata.Item{
 				Key:   key,
 				Value: "us-central1",

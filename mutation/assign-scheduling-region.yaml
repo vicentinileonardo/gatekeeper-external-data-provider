@@ -1,7 +1,7 @@
 apiVersion: mutations.gatekeeper.sh/v1
 kind: Assign
 metadata:
-  name: ai-inference-provider
+  name: assign-scheduling-region
   namespace: default
 spec:
     match:
@@ -17,6 +17,6 @@ spec:
     parameters:
       assign:
         externalData:
-          provider: ai-inference-provider
+          provider: external-data-provider
           dataSource: ValueAtLocation
           failurePolicy: Fail
