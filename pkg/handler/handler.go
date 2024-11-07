@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
+
+	//"strings"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/gatekeeper-external-data-provider/pkg/utils"
@@ -41,26 +42,20 @@ func Handler(w http.ResponseWriter, req *http.Request) {
 	for _, key := range providerRequest.Request.Keys {
 		// Providers should add a caching mechanism to avoid extra calls to external data sources.
 
-		// following checks are for testing purposes only
-		// check if key contains "_systemError" to trigger a system error
-		if strings.HasSuffix(key, "_systemError") {
-			utils.SendResponse(nil, "testing system error", w)
+		// add checks to validate the key,
+		//key must be schedulingRegion
+		if key != "schedulingRegion" {
+			utils.SendResponse(nil, fmt.Sprintf("invalid key: %s", key), w)
 			return
+		} else if key == "schedulingRegion" {
+			results = append(results, externaldata.Item{
+				Key:   key,
+				Value: "us-central1",
+			})
 		}
 
-		// check if key contains "error_" to trigger an error
-		if strings.HasPrefix(key, "error_") {
-			results = append(results, externaldata.Item{
-				Key:   key,
-				Error: key + "_invalid",
-			})
-		} else if !strings.HasSuffix(key, "_valid") {
-			// valid key will have "_valid" appended as return value
-			results = append(results, externaldata.Item{
-				Key:   key,
-				Value: key + "_valid",
-			})
-		}
+		//TODO: make request to external data source
+
 	}
 	utils.SendResponse(&results, "", w)
 }
