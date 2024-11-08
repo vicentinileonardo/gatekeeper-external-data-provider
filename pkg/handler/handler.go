@@ -13,6 +13,19 @@ import (
 	"k8s.io/klog/v2"
 )
 
+const (
+	AI_INFERENCE_SERVER_BASE_URL   = "http://ai-inference-server"
+	AI_INFERENCE_SERVER_K8S_SUFFIX = ".default.svc.cluster.local"
+	AI_INFERENCE_SERVER_PORT       = "8080"
+	AI_INFERENCE_SERVER_ENDPOINT   = "/scheduling"
+)
+
+type SchedulingResponse struct {
+	SchedulingTime     string `json:"schedulingTime"`
+	SchedulingProvider string `json:"schedulingProvider"`
+	SchedulingRegion   string `json:"schedulingRegion"`
+}
+
 func Handler(w http.ResponseWriter, req *http.Request) {
 	// only accept POST requests
 	if req.Method != http.MethodPost {
@@ -43,19 +56,58 @@ func Handler(w http.ResponseWriter, req *http.Request) {
 		// Providers should add a caching mechanism to avoid extra calls to external data sources.
 
 		// add checks to validate the key,
-		//key must be schedulingRegion
+		//TODO: change to deal with multiple keys
 		if key != "not_scheduled" {
 			utils.SendResponse(nil, fmt.Sprintf("invalid key: %s", key), w)
 			return
 		} else if key == "not_scheduled" {
+
+			schedulingRegion, err := getSchedulingRegion()
+			if err != nil {
+				utils.SendResponse(nil, fmt.Sprintf("error getting scheduling region: %v", err), w)
+				return
+			}
+
+			klog.InfoS("scheduling region", "region", schedulingRegion)
+
 			results = append(results, externaldata.Item{
 				Key:   key,
-				Value: "us-central1",
+				Value: schedulingRegion,
 			})
 		}
-
-		//TODO: make request to external data source
-
 	}
 	utils.SendResponse(&results, "", w)
+}
+
+func getSchedulingRegion() (string, error) {
+
+	// Construct the URL
+	url := fmt.Sprintf("%s%s:%s%s", AI_INFERENCE_SERVER_BASE_URL, AI_INFERENCE_SERVER_K8S_SUFFIX, AI_INFERENCE_SERVER_PORT, AI_INFERENCE_SERVER_ENDPOINT)
+	resp, err := http.Get(url)
+
+	if err != nil {
+		return "", fmt.Errorf("error making request to ai-inference-server: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("error reading response body: %v", err)
+	}
+
+	// Unmarshal the response into a SchedulingResponse struct
+	var schedulingResponse SchedulingResponse
+	err = json.Unmarshal(body, &schedulingResponse)
+	if err != nil {
+		return "", fmt.Errorf("error unmarshaling response: %v", err)
+	}
+
+	// check if the response is empty
+	if schedulingResponse.SchedulingRegion == "" {
+		return "", fmt.Errorf("scheduling region is empty")
+	}
+
+	// Return the schedulingRegion
+	return schedulingResponse.SchedulingRegion, nil
 }
