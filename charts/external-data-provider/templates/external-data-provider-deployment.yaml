@@ -17,6 +17,27 @@ spec:
       - image: openpolicyagent/gatekeeper-external-data-provider:dev
         imagePullPolicy: IfNotPresent
         name: external-data-provider
+        env:
+        - name: AI_INFERENCE_SERVER_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: external-data-provider-config
+              key: AI_INFERENCE_SERVER_BASE_URL
+        - name: AI_INFERENCE_SERVER_K8S_SUFFIX
+          valueFrom:
+            configMapKeyRef:
+              name: external-data-provider-config
+              key: AI_INFERENCE_SERVER_K8S_SUFFIX           
+        - name: AI_INFERENCE_SERVER_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: external-data-provider-config
+              key: AI_INFERENCE_SERVER_PORT
+        - name: AI_INFERENCE_SERVER_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: external-data-provider-config
+              key: AI_INFERENCE_SERVER_ENDPOINT
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

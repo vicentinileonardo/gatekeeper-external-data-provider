@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	//"strings"
 
@@ -27,6 +28,11 @@ type SchedulingResponse struct {
 }
 
 func Handler(w http.ResponseWriter, req *http.Request) {
+
+	// TESTING, log the environment variables
+	baseURL, k8sSuffix, port, endpoint := getConfig()
+	klog.InfoS("environment variables", "baseURL", baseURL, "k8sSuffix", k8sSuffix, "port", port, "endpoint", endpoint)
+
 	// only accept POST requests
 	if req.Method != http.MethodPost {
 		utils.SendResponse(nil, "only POST is allowed", w)
@@ -110,4 +116,12 @@ func getSchedulingRegion() (string, error) {
 
 	// Return the schedulingRegion
 	return schedulingResponse.SchedulingRegion, nil
+}
+
+func getConfig() (string, string, string, string) {
+	baseURL := os.Getenv("AI_INFERENCE_SERVER_BASE_URL")
+	k8sSuffix := os.Getenv("AI_INFERENCE_SERVER_K8S_SUFFIX")
+	port := os.Getenv("AI_INFERENCE_SERVER_PORT")
+	endpoint := os.Getenv("AI_INFERENCE_SERVER_ENDPOINT")
+	return baseURL, k8sSuffix, port, endpoint
 }
