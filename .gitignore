@@ -22,3 +22,5 @@ certs/
 
 # binary output
 bin/
+
+.DS_Store
