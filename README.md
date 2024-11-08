@@ -30,8 +30,16 @@ helm install external-data-provider charts/external-data-provider \
     --set provider.tls.caBundle="$(cat certs/ca.crt | base64 | tr -d '\n\r')" \
     --namespace "${NAMESPACE:-gatekeeper-system}"
 
+# Verify the external data provider is running
+kubectl get pods -n "${NAMESPACE:-gatekeeper-system}"
+kubectl get deployments -n "${NAMESPACE:-gatekeeper-system}"
+kubectl get services -n "${NAMESPACE:-gatekeeper-system}"
+
 # Install Assign mutation.
 kubectl apply -f mutation/assign-scheduling-region.yaml
+
+# Get pod logs 
+kubectl logs $(kubectl get pods -n "${NAMESPACE:-gatekeeper-system}" -o jsonpath='{.items[0].metadata.name}') -n "${NAMESPACE:-gatekeeper-system}"
 ```
 
 ## Uninstalling
