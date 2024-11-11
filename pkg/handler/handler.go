@@ -7,18 +7,14 @@ import (
 	"net/http"
 	"os"
 
-	//"strings"
-
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/gatekeeper-external-data-provider/pkg/utils"
 	"k8s.io/klog/v2"
 )
 
 const (
-	AI_INFERENCE_SERVER_BASE_URL   = "http://ai-inference-server"
-	AI_INFERENCE_SERVER_K8S_SUFFIX = ".default.svc.cluster.local"
-	AI_INFERENCE_SERVER_PORT       = "8080"
-	AI_INFERENCE_SERVER_ENDPOINT   = "/scheduling"
+	RegionNotScheduled = "region_not_scheduled"
+	TimeNotScheduled   = "time_not_scheduled"
 )
 
 type SchedulingResponse struct {
@@ -27,101 +23,128 @@ type SchedulingResponse struct {
 	SchedulingRegion   string `json:"schedulingRegion"`
 }
 
+type serverConfig struct {
+	baseURL   string
+	k8sSuffix string
+	port      string
+	endpoint  string
+}
+
 func Handler(w http.ResponseWriter, req *http.Request) {
-
-	// TESTING, log the environment variables
-	baseURL, k8sSuffix, port, endpoint := getConfig()
-	klog.InfoS("environment variables", "baseURL", baseURL, "k8sSuffix", k8sSuffix, "port", port, "endpoint", endpoint)
-
-	// only accept POST requests
 	if req.Method != http.MethodPost {
 		utils.SendResponse(nil, "only POST is allowed", w)
 		return
 	}
 
-	// read request body
+	providerRequest, err := parseRequest(req)
+	if err != nil {
+		utils.SendResponse(nil, err.Error(), w)
+		return
+	}
+
+	results, err := processKeys(providerRequest.Request.Keys)
+	if err != nil {
+		utils.SendResponse(nil, err.Error(), w)
+		return
+	}
+
+	utils.SendResponse(&results, "", w)
+}
+
+func parseRequest(req *http.Request) (*externaldata.ProviderRequest, error) {
 	requestBody, err := io.ReadAll(req.Body)
 	if err != nil {
-		utils.SendResponse(nil, fmt.Sprintf("unable to read request body: %v", err), w)
-		return
+		return nil, fmt.Errorf("unable to read request body: %v", err)
 	}
 
 	klog.InfoS("received request", "body", requestBody)
 
-	// parse request body
 	var providerRequest externaldata.ProviderRequest
-	err = json.Unmarshal(requestBody, &providerRequest)
-	if err != nil {
-		utils.SendResponse(nil, fmt.Sprintf("unable to unmarshal request body: %v", err), w)
-		return
+	if err := json.Unmarshal(requestBody, &providerRequest); err != nil {
+		return nil, fmt.Errorf("unable to unmarshal request body: %v", err)
 	}
 
-	results := make([]externaldata.Item, 0)
-	// iterate over all keys
-	for _, key := range providerRequest.Request.Keys {
-		// Providers should add a caching mechanism to avoid extra calls to external data sources.
-
-		// add checks to validate the key,
-		//TODO: change to deal with multiple keys
-		if key != "not_scheduled" {
-			utils.SendResponse(nil, fmt.Sprintf("invalid key: %s", key), w)
-			return
-		} else if key == "not_scheduled" {
-
-			schedulingRegion, err := getSchedulingRegion()
-			if err != nil {
-				utils.SendResponse(nil, fmt.Sprintf("error getting scheduling region: %v", err), w)
-				return
-			}
-
-			klog.InfoS("scheduling region", "region", schedulingRegion)
-
-			results = append(results, externaldata.Item{
-				Key:   key,
-				Value: schedulingRegion,
-			})
-		}
-	}
-	utils.SendResponse(&results, "", w)
+	klog.InfoS("keys", "keys", providerRequest.Request.Keys)
+	return &providerRequest, nil
 }
 
-func getSchedulingRegion() (string, error) {
-
-	// Construct the URL
-	url := fmt.Sprintf("%s%s:%s%s", AI_INFERENCE_SERVER_BASE_URL, AI_INFERENCE_SERVER_K8S_SUFFIX, AI_INFERENCE_SERVER_PORT, AI_INFERENCE_SERVER_ENDPOINT)
-	resp, err := http.Get(url)
-
+func processKeys(keys []string) ([]externaldata.Item, error) {
+	schedulingResponse, err := getSchedulingResponse()
 	if err != nil {
-		return "", fmt.Errorf("error making request to ai-inference-server: %v", err)
+		return nil, fmt.Errorf("error getting scheduling response: %v", err)
+	}
+
+	results := make([]externaldata.Item, 0, len(keys))
+	for _, key := range keys {
+		item, err := processKey(key, schedulingResponse)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, item)
+	}
+
+	return results, nil
+}
+
+func processKey(key string, resp SchedulingResponse) (externaldata.Item, error) {
+	switch key {
+	case RegionNotScheduled:
+		klog.InfoS("assigned region", "region", resp.SchedulingRegion)
+		return externaldata.Item{
+			Key:   key,
+			Value: resp.SchedulingRegion,
+		}, nil
+
+	case TimeNotScheduled:
+		klog.InfoS("assigned time", "time", resp.SchedulingTime)
+		return externaldata.Item{
+			Key:   key,
+			Value: resp.SchedulingTime,
+		}, nil
+
+	default:
+		return externaldata.Item{}, fmt.Errorf("invalid key: %s", key)
+	}
+}
+
+func getSchedulingResponse() (SchedulingResponse, error) {
+	config := loadConfig()
+	url := fmt.Sprintf("%s%s:%s%s", config.baseURL, config.k8sSuffix, config.port, config.endpoint)
+
+	klog.InfoS("environment variables",
+		"baseURL", config.baseURL,
+		"k8sSuffix", config.k8sSuffix,
+		"port", config.port,
+		"endpoint", config.endpoint)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return SchedulingResponse{}, fmt.Errorf("error making request to ai-inference-server: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// Read the response body
+	if resp.StatusCode != http.StatusOK {
+		return SchedulingResponse{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("error reading response body: %v", err)
+		return SchedulingResponse{}, fmt.Errorf("error reading response body: %v", err)
 	}
 
-	// Unmarshal the response into a SchedulingResponse struct
 	var schedulingResponse SchedulingResponse
-	err = json.Unmarshal(body, &schedulingResponse)
-	if err != nil {
-		return "", fmt.Errorf("error unmarshaling response: %v", err)
+	if err := json.Unmarshal(body, &schedulingResponse); err != nil {
+		return SchedulingResponse{}, fmt.Errorf("error unmarshalling response body: %v", err)
 	}
 
-	// check if the response is empty
-	if schedulingResponse.SchedulingRegion == "" {
-		return "", fmt.Errorf("scheduling region is empty")
-	}
-
-	// Return the schedulingRegion
-	return schedulingResponse.SchedulingRegion, nil
+	return schedulingResponse, nil
 }
 
-func getConfig() (string, string, string, string) {
-	baseURL := os.Getenv("AI_INFERENCE_SERVER_BASE_URL")
-	k8sSuffix := os.Getenv("AI_INFERENCE_SERVER_K8S_SUFFIX")
-	port := os.Getenv("AI_INFERENCE_SERVER_PORT")
-	endpoint := os.Getenv("AI_INFERENCE_SERVER_ENDPOINT")
-	return baseURL, k8sSuffix, port, endpoint
+func loadConfig() serverConfig {
+	return serverConfig{
+		baseURL:   os.Getenv("AI_INFERENCE_SERVER_BASE_URL"),
+		k8sSuffix: os.Getenv("AI_INFERENCE_SERVER_K8S_SUFFIX"),
+		port:      os.Getenv("AI_INFERENCE_SERVER_PORT"),
+		endpoint:  os.Getenv("AI_INFERENCE_SERVER_ENDPOINT"),
+	}
 }

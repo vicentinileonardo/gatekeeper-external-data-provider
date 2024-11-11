@@ -35,8 +35,13 @@ kubectl get pods -n "${NAMESPACE:-gatekeeper-system}"
 kubectl get deployments -n "${NAMESPACE:-gatekeeper-system}"
 kubectl get services -n "${NAMESPACE:-gatekeeper-system}"
 
-# Install Assign mutation.
-kubectl apply -f mutation/assign-scheduling-region.yaml
+kubectl get providers.externaldata.gatekeeper.sh external-data-provider -n "${NAMESPACE:-gatekeeper-system}"
+
+# Install Assign mutation
+kubectl apply -f mutation/assign-scheduling.yaml
+
+# Verify the mutation is running
+kubectl get assign.mutations.gatekeeper.sh assign-scheduling -n "${NAMESPACE:-gatekeeper-system}"
 
 # Get pod logs 
 kubectl logs $(kubectl get pods -n "${NAMESPACE:-gatekeeper-system}" -o jsonpath='{.items[0].metadata.name}') -n "${NAMESPACE:-gatekeeper-system}"
@@ -45,7 +50,6 @@ kubectl logs $(kubectl get pods -n "${NAMESPACE:-gatekeeper-system}" -o jsonpath
 ## Uninstalling
 
 ```bash
-kubectl delete assign.mutations.gatekeeper.sh assign-scheduling-region
 kubectl delete -f mutation/
 
 helm uninstall external-data-provider --namespace "${NAMESPACE:-gatekeeper-system}"
