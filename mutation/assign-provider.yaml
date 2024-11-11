@@ -1,0 +1,20 @@
+apiVersion: mutations.gatekeeper.sh/v1
+kind: Assign
+metadata:
+  name: test-assign-provider
+  namespace: default
+spec:
+    match:
+      scope: Namespaced
+      kinds:
+        - apiGroups: ["greenops.greenops.test"]
+          kinds: ["VirtualMachine"]
+    applyTo:
+    - groups: ["greenops.greenops.test"]
+      kinds: ["VirtualMachine"]
+      versions: ["v1"]
+    location: "spec.provider"
+    parameters:
+      assign:
+        value:
+          "aws"
