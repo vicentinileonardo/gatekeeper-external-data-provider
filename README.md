@@ -56,3 +56,16 @@ helm uninstall external-data-provider --namespace "${NAMESPACE:-gatekeeper-syste
 
 docker rmi openpolicyagent/gatekeeper-external-data-provider:dev
 ```
+
+
+
+OPA Gatekeeper limitation:
+https://open-policy-agent.github.io/gatekeeper/website/docs/externaldata/#limitations
+
+https://github.com/open-policy-agent/gatekeeper/issues/3181
+
+
+The handler should do something similar to the following:
+https://github.com/nilekhc/k8s-gatekeeper-external-data-provider/blob/main/pkg/handler/handler.go
+so get data from k8s resources in the cluster
+the resource is: WorkloadPlacementPolicy
