@@ -1,0 +1,21 @@
+apiVersion: mutations.gatekeeper.sh/v1
+kind: Assign
+metadata:
+  name: assign-scheduling-k8s-namespace
+  namespace: default
+spec:
+    match:
+      scope: Namespaced
+      kinds:
+        - apiGroups: ["greenops.greenops.test"]
+          kinds: ["VirtualMachine"]
+    applyTo:
+    - groups: ["greenops.greenops.test"]
+      kinds: ["VirtualMachine"]
+      versions: ["v1"]
+    location: "spec.scheduling[type: k8s_namespace].decision"
+    parameters:
+      assign:
+        fromMetadata:
+          field: namespace
+          
