@@ -1,5 +1,8 @@
 # External Data Provider
 
+This repo was created in the context of my master's thesis. 
+Currently in standby since limitations were found in the Gatekeeper project.
+
 ## Setup
 
 Build and deploy the external data provider.
